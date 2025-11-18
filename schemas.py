@@ -1,48 +1,69 @@
 """
-Database Schemas
+Database Schemas for 5G Core Simulation
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
-
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Each Pydantic model below maps to a MongoDB collection with the lowercase name
+of the class (e.g., UE -> "ue"). These schemas define the shape of data stored
+by each simulated Network Function (NF).
 """
-
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from typing import Optional
+from datetime import datetime
 
-# Example schemas (replace with your own):
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class UE(BaseModel):
+    supi: str = Field(..., description="Subscriber Permanent Identifier")
+    guti: Optional[str] = Field(None, description="Globally Unique Temporary Identifier")
+    plmn: str = Field(..., description="PLMN in MCC-MNC format")
+    slices: List[str] = Field(default_factory=list, description="List of allowed slice IDs")
+    registered: bool = Field(False, description="Registration status")
+    amf_id: Optional[str] = Field(None, description="Serving AMF instance ID")
+    last_seen: Optional[datetime] = Field(default=None, description="Last activity timestamp")
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Slice(BaseModel):
+    slice_id: str = Field(..., description="Slice/Service Type identifier e.g., '1', 'eMBB'")
+    sst: str = Field(..., description="Slice/Service Type")
+    sd: Optional[str] = Field(None, description="Slice Differentiator")
+    description: Optional[str] = Field(None)
+    plmns: List[str] = Field(default_factory=list, description="Allowed PLMNs")
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+
+class PolicyRule(BaseModel):
+    policy_id: str = Field(...)
+    desc: Optional[str] = None
+    qos: Dict[str, Any] = Field(default_factory=lambda: {"5qi": 9, "mbr_ul": "10Mbps", "mbr_dl": "10Mbps"})
+    charging: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PDUSession(BaseModel):
+    session_id: str = Field(..., description="Unique PDU session identifier")
+    supi: str = Field(...)
+    dnn: str = Field(..., description="Data Network Name")
+    s_nssai: str = Field(..., description="Selected slice ID")
+    smf_id: Optional[str] = Field(None)
+    upf_id: Optional[str] = Field(None)
+    state: str = Field("ACTIVE", description="Session state")
+    qos_rules: Dict[str, Any] = Field(default_factory=dict)
+    ul_bytes: int = Field(0)
+    dl_bytes: int = Field(0)
+
+
+class NFService(BaseModel):
+    nf_type: str = Field(..., description="NF type: AMF/SMF/UPF/NRF/NSSF/PCF/UDM")
+    nf_id: str = Field(..., description="Instance identifier")
+    status: str = Field("HEALTHY")
+    api_base: str = Field(..., description="Base URL for the NF")
+    capabilities: List[str] = Field(default_factory=list)
+
+
+class LogEntry(BaseModel):
+    nf: str = Field(..., description="NF producing the log")
+    level: str = Field("INFO")
+    message: str
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class HealthStatus(BaseModel):
+    nf: str
+    status: str = "HEALTHY"
+    details: Dict[str, Any] = Field(default_factory=dict)
